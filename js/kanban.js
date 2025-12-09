@@ -7,7 +7,7 @@ window.onload = function() {
 };
 
 // ⚠️ GANTI DENGAN URL DEPLOYMENT TERBARU ANDA
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx-4Gl-2r41dzNGXHZg-AzIbOrYE5ad4gfFfQBXW4FkFikwzZD_wlePH9XUaFTAF7JR/exec"; 
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx3--hnP_6VrYDhHj-VkIK3ELjFoTdgz8gC95C3pQwo_uQFq6dsHbHXlADrpudAVM6j/exec"; 
 
 // Mapping Status Spreadsheet -> ID HTML Sub-Column
 const COLUMN_STATUS_MAP = {
@@ -126,4 +126,5 @@ function renderBoard(tickets) {
             }
         }
     });
+
 }
