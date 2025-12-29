@@ -3,7 +3,7 @@
 // =======================================================
 
 // 1. KONFIGURASI UTAMA
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby4003IxgaiH-ExjVqWHDEZWYiXJ7gj5t8Nrs6txfpgaNVT1g0k52Mmyh4bgrj4tsHr/exec"; 
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw7_1FDTvQTrycBxoQRUJ3we12u_eTPXHxczwBLxlj-TfU6htIT2piub_E3p_W4Qk1J/exec"; 
 
 const COLUMN_STATUS_MAP = {
     'Belum Dimulai': 'sub-col-belum-dimulai',
@@ -143,3 +143,4 @@ function executeReport() {
     else if (month) window.open(`report.html?month=${month}`, "_blank");
     else alert("Pilih tanggal atau bulan!");
 }
+
