@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detail Tiket</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎫</text></svg>">
+    <style>
+        :root {
+            --bg-color: #f4f5f7;
+            --card-bg: #ffffff;
+            --text-primary: #172b4d;
+            --text-secondary: #5e6c84;
+            --border-radius: 8px;
+            --shadow: 0 1px 3px rgba(0,0,0,0.12);
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 600px;
+            background: var(--card-bg);
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            padding: 24px;
+            min-height: 400px;
+        }
+
+        /* Header Section */
+        .ticket-header {
+            border-bottom: 2px solid #ebecf0;
+            padding-bottom: 16px;
+            margin-bottom: 20px;
+        }
+
+        .ticket-id {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #0052cc;
+            margin-bottom: 12px;
+        }
+
+        .info-row {
+            display: flex;
+            margin-bottom: 8px;
+            align-items: flex-start;
+        }
+
+        .info-icon {
+            width: 24px;
+            margin-right: 8px;
+            font-size: 1.1rem;
+        }
+
+        .info-label {
+            font-weight: 600;
+            margin-right: 6px;
+            min-width: 70px; /* Supaya sejajar */
+        }
+
+        .info-value {
+            color: var(--text-primary);
+            word-break: break-word;
+        }
+
+        /* Status Badge Style */
+        .status-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            background-color: #dfe1e6;
+        }
+
+        /* History Section */
+        .history-section {
+            margin-top: 30px;
+        }
+
+        .history-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 12px;
+            border-bottom: 1px dashed #ebecf0;
+            padding-bottom: 8px;
+        }
+
+        .log-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .log-item {
+            padding: 8px 0;
+            border-bottom: 1px solid #f4f5f7;
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+
+        .log-date {
+            font-weight: 600;
+            color: #0052cc;
+            font-family: monospace;
+            background: #eef5fd;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-right: 6px;
+        }
+
+        .loading, .error {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-secondary);
+        }
+        .error { color: #de350b; }
+    </style>
+</head>
+<body>
+
+    <div class="container" id="main-container">
+        <div class="loading">⏳ Sedang memuat data tiket...</div>
+    </div>
+
+    <script>
+        // ⚠️ GANTI DENGAN URL DEPLOYMENT ANDA SENDIRI
+        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby4003IxgaiH-ExjVqWHDEZWYiXJ7gj5t8Nrs6txfpgaNVT1g0k52Mmyh4bgrj4tsHr/exec"; 
+
+        // Ambil ID dari URL (contoh: task.html?id=251210004)
+        const urlParams = new URLSearchParams(window.location.search);
+        const ticketId = urlParams.get('id');
+
+        const container = document.getElementById('main-container');
+
+        if (!ticketId) {
+            container.innerHTML = '<div class="error">❌ ID Tiket tidak ditemukan di URL.</div>';
+        } else {
+            loadTicketDetails(ticketId);
+        }
+
+        async function loadTicketDetails(id) {
+            try {
+                // 1. Fetch Data Utama Tiket
+                const ticketRes = await fetch(`${APPS_SCRIPT_URL}?action=getTicketDetail&id=${id}`);
+                const ticketJson = await ticketRes.json();
+
+                // 2. Fetch History Log
+                const logsRes = await fetch(`${APPS_SCRIPT_URL}?action=getTicketLogs&id=${id}`);
+                const logsJson = await logsRes.json();
+
+                if (ticketJson.status !== 'success') {
+                    throw new Error("Tiket tidak ditemukan.");
+                }
+
+                renderUI(ticketJson.data, logsJson.data || []);
+
+            } catch (err) {
+                console.error(err);
+                container.innerHTML = `<div class="error">⚠️ Terjadi kesalahan: ${err.message}</div>`;
+            }
+        }
+
+        function formatDateShort(dateString) {
+            // Ubah "2025-12-17 10:29:00" jadi "17/12 10:29"
+            if (!dateString) return "-";
+            const d = new Date(dateString);
+            const day = String(d.getDate()).padStart(2, '0');
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const hour = String(d.getHours()).padStart(2, '0');
+            const min = String(d.getMinutes()).padStart(2, '0');
+            return `${day}/${month} ${hour}:${min}`;
+        }
+        
+        function formatCreatedDate(dateString) {
+            // Ubah "2025-12-17 10:29:00" jadi "17/12/2025 10:29"
+            if (!dateString) return "-";
+            const d = new Date(dateString);
+             // Format manual sesuai keinginan user: dd/MM/yyyy HH:mm
+            const day = String(d.getDate()).padStart(2, '0');
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const year = d.getFullYear();
+            const hour = String(d.getHours()).padStart(2, '0');
+            const min = String(d.getMinutes()).padStart(2, '0');
+            return `${day}/${month}/${year} ${hour}:${min}`;
+        }
+
+        function renderUI(ticket, logs) {
+            // Format Data
+            const createdDate = formatCreatedDate(ticket.creationTimestamp);
+            
+            // Generate List Log HTML
+            let logsHtml = '<div class="log-item" style="color:#999;">Belum ada riwayat update.</div>';
+            
+            if (logs && logs.length > 0) {
+                logsHtml = logs.map(log => {
+                    const shortDate = formatDateShort(log.timestamp); // Format: 19/12 12:38
+                    return `
+                        <li class="log-item">
+                            <span class="log-date">[${shortDate}]</span> ${log.logMessage}
+                        </li>
+                    `;
+                }).join('');
+            }
+
+            // Render HTML Utama
+            container.innerHTML = `
+                <div class="ticket-header">
+                    <div class="ticket-id">🎫 DETAIL TIKET: ${ticket.ticketId}</div>
+                    
+                    <div class="info-row">
+                        <span class="info-icon">👤</span>
+                        <div><span class="info-label">User:</span> <span class="info-value">${ticket.senderName}</span></div>
+                    </div>
+                    
+                    <div class="info-row">
+                        <span class="info-icon">📝</span>
+                        <div><span class="info-label">Tugas:</span> <span class="info-value">${ticket.taskDescription}</span></div>
+                    </div>
+
+                    <div class="info-row">
+                        <span class="info-icon">🏷️</span>
+                        <div><span class="info-label">Kategori:</span> <span class="info-value">${ticket.category || 'Umum'}</span></div>
+                    </div>
+
+                    <div class="info-row">
+                        <span class="info-icon">⏰</span>
+                        <div><span class="info-label">Dibuat:</span> <span class="info-value">${createdDate}</span></div>
+                    </div>
+
+                    <div class="info-row">
+                        <span class="info-icon">🚀</span>
+                        <div>
+                            <span class="info-label">Status:</span> 
+                            <span class="status-badge">${ticket.status}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="history-section">
+                    <div class="history-title">📜 RIWAYAT UPDATE:</div>
+                    <ul class="log-list">
+                        ${logsHtml}
+                    </ul>
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html>

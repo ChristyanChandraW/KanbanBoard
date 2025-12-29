@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IT Report Detail</title>
+    <style>
+        body { font-family: 'Courier New', monospace; font-size: 12px; padding: 15px; background: #fff; color: #000; }
+        .container { max-width: 100%; margin: auto; }
+        .cctv-dots { letter-spacing: 2px; font-size: 14px; margin: 10px 0; word-wrap: break-word; }
+        .ticket-item { margin-bottom: 10px; border-left: 2px solid #ccc; padding-left: 10px; }
+        .log-line { color: #666; font-size: 11px; margin-left: 15px; font-style: italic; }
+        hr { border: none; border-top: 1px dashed #000; margin: 15px 0; }
+        .loading { text-align: center; margin-top: 50px; font-size: 16px; }
+    </style>
+</head>
+<body>
+    <div class="container" id="reportArea">
+        <div class="loading">Menarik data dari satelit... 🛰️</div>
+    </div>
+
+    <script>
+        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby4003IxgaiH-ExjVqWHDEZWYiXJ7gj5t8Nrs6txfpgaNVT1g0k52Mmyh4bgrj4tsHr/exec";
+        const params = new URLSearchParams(window.location.search);
+        const qDate = params.get('date');
+        const qMonth = params.get('month');
+
+        async function init() {
+            try {
+                const res = await fetch(`${APPS_SCRIPT_URL}?action=getTodoData`);
+                const json = await res.json();
+                renderReport(json.data);
+            } catch (e) { document.getElementById('reportArea').innerText = "Gagal muat data."; }
+        }
+
+        async function renderReport(data) {
+            let filtered = [];
+            let headerTitle = "";
+            let isMonthly = false;
+
+            if (qDate) {
+                filtered = data.filter(t => t.CreationTimestamp && t.CreationTimestamp.includes(qDate));
+                headerTitle = `LAPORAN HARIAN IT (${qDate})`;
+            } else {
+                filtered = data.filter(t => t.CreationTimestamp && t.CreationTimestamp.split('-')[1] === qMonth);
+                headerTitle = `LAPORAN BULANAN IT (BULAN: ${qMonth})`;
+                isMonthly = true;
+            }
+
+            let html = `--- CCTV REPORT ---<br>`;
+            // Logika Grafis CCTV
+            if (isMonthly) {
+                html += `AKTIF (🟢) | DOWN (🔴)<br><div class="cctv-dots">`;
+                for(let i=0; i<176; i++) html += "🟢"; 
+                for(let i=0; i<2; i++) html += "🔴";
+                html += `</div>Total: 178 unit<br>`;
+            } else {
+                html += `TOTAL CCTV AKTIF: 176<br>TOTAL CCTV DOWN: 2<br>`;
+            }
+            
+            html += `<br>Detail CCTV:<br>[18:42] CJR: UP 93 | DOWN 2<br>[18:42] SDB: UP 72 | DOWN 0<br><hr>`;
+            html += `<b>${headerTitle}</b><br><br>`;
+
+            // Grouping Status
+            const groups = ["Menunggu Vendor", "Selesai", "Fokus Dikerjakan"]; 
+            for (let status of groups) {
+                const items = filtered.filter(t => t.Condition === status);
+                html += `<b>${status.toUpperCase()} (${items.length}):</b><br>`;
+                for (let t of items) {
+                    html += `<div class="ticket-item">• ${t.ID} - ${t.Name} - ${t.Task} [${t.Condition}]<br>`;
+                    // Ambil Log (Request lagi ke GS per tiket)
+                    const logRes = await fetch(`${APPS_SCRIPT_URL}?action=getTicketLogs&id=${t.ID}`);
+                    const logJson = await logRes.json();
+                    if(logJson.data) {
+                        logJson.data.forEach(l => {
+                            html += `<div class="log-line">└─ [${l.timestamp}] ${l.logMessage}</div>`;
+                        });
+                    }
+                    html += `</div>`;
+                }
+                html += `<br>`;
+            }
+
+            document.getElementById('reportArea').innerHTML = html;
+        }
+        init();
+    </script>
+</body>
+</html>
