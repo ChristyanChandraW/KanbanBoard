@@ -1,131 +1,145 @@
 // =======================================================
-// === File: kanban.js ===
+// === File: kanban.js (VERSI CEPAT & FIX) ===
 // =======================================================
 
-window.onload = function() {
-    loadKanbanBoard();
-};
+// 1. KONFIGURASI UTAMA
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby4003IxgaiH-ExjVqWHDEZWYiXJ7gj5t8Nrs6txfpgaNVT1g0k52Mmyh4bgrj4tsHr/exec"; 
 
-// ⚠️ GANTI DENGAN URL DEPLOYMENT TERBARU ANDA
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby2ZrScUX9pZfr2zdOQ14bOXfBz1U9V9MUMXdFFFS1VWbOjs-JSNSF-XvMpNjcc0Ake/exec"; 
-
-// Mapping Status Spreadsheet -> ID HTML Sub-Column
 const COLUMN_STATUS_MAP = {
-    // TO DO
     'Belum Dimulai': 'sub-col-belum-dimulai',
     'Belum Dimulai (Perlu Konfirmasi)': 'sub-col-perlu-konfirmasi',
-
-    // DOING
     'Fokus Dikerjakan': 'sub-col-focus',
     'Dikerjakan': 'sub-col-focus', 
     'Doing': 'sub-col-focus',
     'Menunggu Konfirmasi': 'sub-col-menunggu-konfirmasi',
     'Menunggu Persetujuan': 'sub-col-menunggu-persetujuan',
     'Menunggu Vendor': 'sub-col-menunggu-persetujuan',
-
-    // REVIEW
     'Dalam Tinjauan': 'col-review',
     'Review': 'col-review',
-    
-    // DONE
     'Selesai': 'col-done',
     'Done': 'col-done'
 };
 
-function loadKanbanBoard() {
-    console.log("Mengambil data...");
+// 2. INIT FUNGSI SAAT LOAD
+document.addEventListener("DOMContentLoaded", () => {
+    loadKanbanBoard();
+    initDarkMode();
+    setupSearchLogic();
+});
 
-    fetch(`${APPS_SCRIPT_URL}?action=getTodoData`)
-        .then(response => {
-            if (!response.ok) throw new Error("Gagal akses URL Apps Script");
-            return response.json();
-        })
-        .then(json => {
-            console.log("Data diterima:", json);
-            // Handle struktur data { status: 'success', data: [...] }
-            if (json.data && Array.isArray(json.data)) {
+// Refresh otomatis tiap 2 menit
+setInterval(loadKanbanBoard, 120000);
+
+// 3. FUNGSI LOAD DATA (OPTIMASI CACHE)
+async function loadKanbanBoard() {
+    console.time("FetchTime");
+    
+    // Tampilkan cache dulu supaya cepat (Instant Loading)
+    const cached = localStorage.getItem("kanbanCacheData");
+    if (cached) {
+        renderBoard(JSON.parse(cached));
+    }
+
+    try {
+        const response = await fetch(`${APPS_SCRIPT_URL}?action=getTodoData`);
+        const json = await response.json();
+        
+        if (json && json.data) {
+            // Jika data baru berbeda dengan cache, update tampilan
+            if (JSON.stringify(json.data) !== cached) {
                 renderBoard(json.data);
-            } else {
-                console.warn("Format data tidak sesuai atau kosong.");
+                localStorage.setItem("kanbanCacheData", JSON.stringify(json.data));
             }
-        })
-        .catch(error => {
-            console.error("Error Fetching:", error);
-            document.querySelector('.board-container').innerHTML = 
-                `<div style="color:red; text-align:center; margin-top:20px;">
-                    <h3>Gagal Memuat Data</h3>
-                    <p>${error.message}</p>
-                    <small>Pastikan URL Apps Script benar dan Deploy sebagai 'Anyone'</small>
-                 </div>`;
-        });
+        }
+    } catch (err) {
+        console.error("Gagal ambil data:", err);
+    } finally {
+        console.timeEnd("FetchTime");
+    }
 }
 
-function getPriorityClass(ticket) {
-    const category = String(ticket.Category || "").toLowerCase();
-    const task = String(ticket.Task || "").toLowerCase();
+// 4. RENDER KE HTML
+function renderBoard(tickets) {
+    // Bersihkan semua kolom kecuali header
+    const columns = document.querySelectorAll('.sub-column, #col-review, #col-done');
+    columns.forEach(col => {
+        const header = col.querySelector('.sub-header') || col.querySelector('.column-header');
+        col.innerHTML = '';
+        if (header) col.appendChild(header);
+    });
 
-    if (category.includes('hardware') || task.includes('urgent')) return 'priority-high';
-    if (category.includes('software') || task.includes('penting')) return 'priority-med';
-    return 'priority-low';
+    // Masukkan kartu ke kolom masing-masing
+    tickets.forEach(ticket => {
+        const status = ticket.Condition;
+        const targetId = COLUMN_STATUS_MAP[status];
+        if (targetId) {
+            const container = document.getElementById(targetId);
+            if (container) {
+                container.insertAdjacentHTML('beforeend', createCardHTML(ticket));
+            }
+        }
+    });
 }
 
 function createCardHTML(ticket) {
-    // Mapping Key JSON dari kode.gs
-    const id = ticket.ID || "#";
-    const task = ticket.Task || "(Tanpa Judul)";
-    const assignee = ticket.Name || ticket.Requestor || "Unassigned";
-    const status = ticket.Condition || "";
+    const id = ticket.ID || "N/A";
+    const task = ticket.Task || "No Task";
+    const name = ticket.Name || "Anonim";
+    const priority = (task.toLowerCase().includes('urgent')) ? 'priority-high' : 'priority-low';
     
-    // Format Tanggal
-    let dateDisplay = "";
-    if (ticket.CreationTimestamp) {
-        // Karena dari Apps Script sudah di-format string, kita bisa ambil bagian tanggalnya saja atau parsing ulang
-        dateDisplay = ticket.CreationTimestamp.split(' ')[0]; // Ambil YYYY-MM-DD
-    }
-
-    const priorityClass = getPriorityClass(ticket);
-    const opacityStyle = (status === 'Selesai') ? 'style="opacity:0.7;"' : '';
-    const titleStyle = (status === 'Selesai') ? 'style="text-decoration:line-through;"' : '';
-
-    // Ambil judul tugas utama (hapus bagian S: P: O: K: | Asli: ...)
-    let displayTitle = task;
-    if (displayTitle.includes("| Asli:")) {
-        displayTitle = displayTitle.split("| Asli:")[0].trim();
-    }
-
     return `
-        <div class="card ${priorityClass}" onclick="alert('ID: ${id}\\nTask: ${task}')" ${opacityStyle}>
-            <div class="card-title" ${titleStyle}>${displayTitle}</div>
+        <div class="card ${priority}" onclick="openTaskDetail('${id}')">
+            <div class="card-title">${task}</div>
             <div class="card-meta">
-                <span>#${id}</span>
-                <span>${assignee}</span>
-                <span>${dateDisplay}</span>
+                <span>#${id}</span> | <span>${name}</span>
             </div>
         </div>
     `;
 }
 
-function renderBoard(tickets) {
-    // 1. Bersihkan Kolom (Sisakan Header)
-    const columns = document.querySelectorAll('.sub-column, #col-review, #col-done');
-    columns.forEach(col => {
-        // Hapus card, biarkan header
-        const headers = col.querySelectorAll('.sub-header');
-        col.innerHTML = '';
-        headers.forEach(h => col.appendChild(h));
-    });
+// 5. LOGIKA SEARCH & DARK MODE (FIX)
+function setupSearchLogic() {
+    const searchInput = document.getElementById('mainSearch');
+    if (!searchInput) return;
 
-    // 2. Render Kartu Baru
-    tickets.forEach(ticket => {
-        const status = ticket.Condition;
-        if (status && COLUMN_STATUS_MAP[status]) {
-            const targetId = COLUMN_STATUS_MAP[status];
-            const container = document.getElementById(targetId);
-            if (container) {
-                container.innerHTML += createCardHTML(ticket);
+    searchInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            const val = searchInput.value.trim();
+            if (!val) return;
+
+            if (val.toLowerCase() === 'see') {
+                const toggle = document.getElementById('darkModeToggle');
+                if (toggle) toggle.click();
+                searchInput.value = "";
+            } else {
+                window.open(`task.html?id=${val}`, "_blank");
             }
         }
     });
-
 }
 
+function initDarkMode() {
+    const toggle = document.getElementById('darkModeToggle');
+    if (!toggle) return;
+
+    const isDark = localStorage.getItem('theme') === 'dark';
+    toggle.checked = isDark;
+    if (isDark) document.body.classList.add('dark-mode');
+
+    toggle.addEventListener('change', () => {
+        document.body.classList.toggle('dark-mode', toggle.checked);
+        localStorage.setItem('theme', toggle.checked ? 'dark' : 'light');
+    });
+}
+
+function openTaskDetail(id) {
+    window.open(`task.html?id=${id}`, "_blank");
+}
+
+function executeReport() {
+    const date = document.getElementById('inputDate').value;
+    const month = document.getElementById('inputMonth').value;
+    if (date) window.open(`report.html?date=${date}`, "_blank");
+    else if (month) window.open(`report.html?month=${month}`, "_blank");
+    else alert("Pilih tanggal atau bulan!");
+}
